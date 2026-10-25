@@ -5,6 +5,8 @@ import ast
 import json
 
 import pytest
+from partial_json_parser.core.exceptions import MalformedJSON
+from partial_json_parser.core.options import Allow
 
 from vllm.tool_parsers.utils import (
     UnexpectedAstError,
@@ -17,9 +19,41 @@ from vllm.tool_parsers.utils import (
     handle_single_tool,
     make_valid_python,
     normalize_leading_zero_ints,
+    partial_json_loads,
     rename_reserved_kwargs,
     restore_reserved_kwarg_names,
 )
+
+
+class TestPartialJsonLoads:
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param(
+                '{"name": "get_weather", "arguments": {}}}', id="stray_closing_brace"
+            ),
+            pytest.param('{"a": [1}', id="mismatched_closing_bracket"),
+        ],
+    )
+    def test_unbalanced_brackets_raise_malformed_json(self, text):
+        with pytest.raises(MalformedJSON):
+            partial_json_loads(text, Allow.ALL)
+
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            pytest.param(
+                '{"name": "get_weather", "argu',
+                ({"name": "get_weather"}, 29),
+                id="partial",
+            ),
+            pytest.param(
+                '{"name": "a"}; {"name": "b"}', ({"name": "a"}, 13), id="extra_data"
+            ),
+        ],
+    )
+    def test_well_formed_input_still_parses(self, text, expected):
+        assert partial_json_loads(text, Allow.ALL) == expected
 
 
 class TestCoerceToSchemaType:

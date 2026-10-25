@@ -166,6 +166,11 @@ def partial_json_loads(input_str: str, flags: Allow) -> tuple[Any, int]:
             dec = JSONDecoder()
             return dec.raw_decode(input_str)
         raise
+    except (IndexError, AssertionError) as e:
+        # partial_json_parser's fast path pops its bracket stack without checking
+        # it, so a stray closing bracket raises IndexError (and a mismatched one
+        # AssertionError) instead of MalformedJSON, which callers already handle.
+        raise partial_json_parser.core.exceptions.MalformedJSON(str(e)) from e
 
 
 def is_complete_json(input_str: str) -> bool:
